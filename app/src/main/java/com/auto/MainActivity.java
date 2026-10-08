@@ -3,7 +3,7 @@ package com.auto;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.BatteryManager;
+import.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
@@ -18,7 +18,6 @@ import android.widget.Toast;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.chrono.HijrahDate;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.util.Date;
 import java.util.Locale;
@@ -31,6 +30,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private int intervalMenit = 30;
 
     private EditText etInterval;
+
+    // Nilai koreksi (offset) untuk mencocokkan kalender sistem dengan Kemenag
+    // Ubah angka ini jika di kemudian hari ada selisih dengan rukyat lokal
+    private int offsetHari = -1; 
 
     @Override
     protected void onCreate(Bundle state) {
@@ -105,8 +108,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         String tanggalMasehi = new SimpleDateFormat("EEEE, dd MMMM yyyy", new Locale("id", "ID")).format(new Date());
 
-        // Menggunakan API HijrahDate bawaan sistem yang akurat
-        LocalDate sekarangMasehi = LocalDate.now();
+        // Menggunakan LocalDate dengan penyesuaian offsetHari agar sinkron dengan Kemenag
+        LocalDate sekarangMasehi = LocalDate.now().plusDays(offsetHari);
         HijrahDate hijrahDate = HijrahDate.from(sekarangMasehi);
         
         long hariH = hijrahDate.get(ChronoField.DAY_OF_MONTH);
