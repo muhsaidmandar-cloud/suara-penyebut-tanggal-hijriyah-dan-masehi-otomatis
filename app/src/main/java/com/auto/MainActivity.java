@@ -16,10 +16,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
-import java.util.TimeZone;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
 
@@ -81,7 +79,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if (status == TextToSpeech.SUCCESS) {
             int result = tts.setLanguage(new Locale("id", "ID"));
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Toast.makeText(this, "Bahasa Indonesia tidak didukung pada TTS perangkat", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Bahasa Indonesia tidak didukung pada perangkat", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -106,7 +104,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         android.icu.util.Calendar hijriCalendar = android.icu.util.Calendar.getInstance(
                 new android.icu.util.ULocale("id_ID@calendar=islamic-umalqura")
         );
-        hijriCalendar.setTimeZone(TimeZone.getDefault());
         hijriCalendar.setTime(new Date());
 
         String namaBulanHijriyah = hijriCalendar.getDisplayName(
