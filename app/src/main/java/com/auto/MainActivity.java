@@ -16,6 +16,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
@@ -101,11 +102,30 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         String tanggalMasehi = new SimpleDateFormat("EEEE, dd MMMM yyyy", new Locale("id", "ID")).format(new Date());
 
-        android.icu.util.Calendar hijriCalendar = android.icu.util.Calendar.getInstance(new android.icu.util.ULocale("id_ID@calendar=islamic"));
-        String namaBulanHijriyah = hijriCalendar.getDisplayName(android.icu.util.Calendar.MONTH, android.icu.util.Calendar.LONG, new android.icu.util.ULocale("id_ID@calendar=islamic"));
-        int hariHijriyah = hijriCalendar.get(android.icu.util.Calendar.DAY_OF_MONTH);
-        int tahunHijriyah = hijriCalendar.get(android.icu.util.Calendar.YEAR);
-        String tanggalHijriyahLengkap = hariHijriyah + " " + namaBulanHijriyah + " " + tahunHijriyah;
+        Calendar calendar = Calendar.getInstance();
+        int tahunMasehiInt = calendar.get(Calendar.YEAR);
+        int bulanMasehiInt = calendar.get(Calendar.MONTH);
+        int hariMasehiInt = calendar.get(Calendar.DAY_OF_MONTH);
+
+        long totalHariJuli = toJdn(tahunMasehiInt, bulanMasehiInt + 1, hariMasehiInt);
+        long hariHijriyahTotal = totalHariJuli - 1948440 + 10632;
+        long n = (long) ((hariHijriyahTotal - 10616) / 10631.0);
+        hariHijriyahTotal = hariHijriyahTotal - 10631 * n + 354;
+        long tahunHijriyah = (long) ((10965 * hariHijriyahTotal + 1000) / 325465) + 30 * n + 1;
+        long sisaHari = hariHijriyahTotal - (long) ((354 * (tahunHijriyah - 30 * n - 1)) + (int)((tahunHijriyah - 30 * n - 1) / 30));
+        if (sisaHari < 0) {
+            tahunHijriyah--;
+            sisaHari = hariHijriyahTotal - (long) ((354 * (tahunHijriyah - 30 * n - 1)) + (int)((tahunHijriyah - 30 * n - 1) / 30));
+        }
+        int bulanHijriyah = (int) ((29 * sisaHari + 295) / 295);
+        if (bulanHijriyah > 12) bulanHijriyah = 12;
+        long tanggalHijriyah = sisaHari - (long) ((29.5 * (bulanHijriyah - 1)) + 0.5);
+        if (tanggalHijriyah < 1) tanggalHijriyah = 1;
+
+        String[] namaBulanHijriyahArray = {"Muharram", "Safar", "Rabiul Awal", "Rabiul Akhir", "Jumadil Awal", "Jumadil Akhir", "Rajab", "Sya'ban", "Ramadhan", "Syawal", "Dulqaidah", "Dulhijjah"};
+        String namaBulanHijriyahStr = namaBulanHijriyahArray[Math.max(0, Math.min(11, bulanHijriyah - 1))];
+
+        String tanggalHijriyahLengkap = tanggalHijriyah + " " + namaBulanHijriyahStr + " " + tahunHijriyah;
 
         int levelBaterai = getBatteryPercentage();
 
@@ -117,6 +137,19 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if (tts != null) {
             tts.speak(teksUcapan, TextToSpeech.QUEUE_FLUSH, null, null);
         }
+    }
+
+    private long toJdn(int tahun, int bulan, int hari) {
+        if (bulan < 3) {
+            tahun -= 1;
+            bulan += 12;
+        }
+        int a = tahun / 100;
+        int b = a / 4;
+        int c = 2 - a + b;
+        long e = (long) (365.25 * (tahun + 4716));
+        long f = (long) (30.6001 * (bulan + 1));
+        return c + hari + e + f - 1524;
     }
 
     private int getBatteryPercentage() {
