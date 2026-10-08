@@ -117,7 +117,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     try {
                         intervalMenit = Integer.parseInt(inputInterval);
                         if (intervalMenit <= 0) {
-                            Toast.자가Gagal("Interval harus lebih dari 0 menit"); // fallback Toast biasa
                             Toast.makeText(this, "Interval minimal 1 menit", Toast.LENGTH_SHORT).show();
                             return;
                         }
@@ -125,7 +124,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                         btnMulai.setText("Hentikan Pengingat Otomatis");
                         Toast.makeText(this, "Pengingat aktif setiap " + intervalMenit + " menit", Toast.LENGTH_SHORT).show();
                         
-                        // Langsung ucapkan sekali di awal saat tombol ditekan, lalu jalankan perulangan
                         ucapkanInformasiLengkap();
                         mulaiPengingatOtomatis();
                     } catch (NumberFormatException e) {
@@ -135,7 +133,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     Toast.makeText(this, "Masukkan interval terlebih dahulu", Toast.LENGTH_SHORT).show();
                 }
             } else {
-                // Hentikan pengingat
                 hentikanPengingatOtomatis();
                 btnMulai.setText("Mulai Pengingat Otomatis");
                 Toast.makeText(this, "Pengingat otomatis dihentikan", Toast.LENGTH_SHORT).show();
@@ -187,12 +184,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             public void run() {
                 if (isRunning) {
                     ucapkanInformasiLengkap();
-                    // Menggunakan interval menit yang diinputkan pengguna dikonversi ke milidetik
                     handler.postDelayed(this, (long) intervalMenit * 60 * 1000);
                 }
             }
         };
-        // Jadwal eksekusi berikutnya berdasarkan input interval menit
         handler.postDelayed(runnable, (long) intervalMenit * 60 * 1000);
     }
 
