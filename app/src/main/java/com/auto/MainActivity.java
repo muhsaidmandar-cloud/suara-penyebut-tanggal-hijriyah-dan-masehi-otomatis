@@ -3,15 +3,20 @@ package com.auto;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.Voice;
 import android.text.InputType;
 import android.view.Gravity;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -19,8 +24,11 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.chrono.HijrahDate;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
 
@@ -30,6 +38,12 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private int intervalMenit = 30;
 
     private EditText etInterval;
+    private Spinner spinnerVoice;
+    private Spinner spinnerVolume;
+    
+    private List<Voice> voiceList = new ArrayList<>();
+    private List<String> voiceNames = new ArrayList<>();
+    private ArrayAdapter<String> voiceAdapter;
 
     // Nilai koreksi (offset) untuk mencocokkan kalender sistem dengan Kemenag
     private int offsetHari = -1; 
@@ -45,13 +59,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         TextView title = new TextView(this);
         title.setText("suara penyebut tanggal hijriyah dan masehi otomatis");
-        title.setTextSize(22);
+        title.setTextSize(20);
         title.setGravity(Gravity.CENTER);
         box.addView(title);
 
+        // --- PENGATURAN INTERVAL ---
         TextView labelInterval = new TextView(this);
         labelInterval.setText("Atur Interval Suara (Menit):");
-        labelInterval.setPadding(0, 32, 0, 8);
+        labelInterval.setPadding(0, 24, 0, 4);
         box.addView(labelInterval);
 
         etInterval = new EditText(this);
@@ -59,6 +74,33 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         etInterval.setText("30");
         box.addView(etInterval);
 
+        // --- PILIHAN SUARA / VOICE TTS ---
+        TextView labelVoice = new TextView(this);
+        labelVoice.setText("Pilih Suara TTS:");
+        labelVoice.setPadding(0, 16, 0, 4);
+        box.addView(labelVoice);
+
+        spinnerVoice = new Spinner(this);
+        voiceNames.add("Default (Bahasa Indonesia)");
+        voiceAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, voiceNames);
+        voiceAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerVoice.setAdapter(voiceAdapter);
+        box.addView(spinnerVoice);
+
+        // --- PILIHAN JENIS VOLUME ---
+        TextView labelVolume = new TextView(this);
+        labelVolume.setText("Pilih Jenis Volume Audio:");
+        labelVolume.setPadding(0, 16, 0, 4);
+        box.addView(labelVolume);
+
+        spinnerVolume = new Spinner(this);
+        String[] pilihanVolume = {"Media", "Notifikasi", "Alarm", "Nada Dering (Ring)"};
+        ArrayAdapter<String> volumeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, pilihanVolume);
+        volumeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerVolume.setAdapter(volumeAdapter);
+        box.addView(spinnerVolume);
+
+        // --- TOMBOL MULAI ---
         Button btnMulai = new Button(this);
         btnMulai.setText("Mulai Pengingat Otomatis");
         btnMulai.setPadding(0, 16, 0, 16);
@@ -66,6 +108,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         setContentView(box);
 
+        // Inisialisasi TextToSpeech dengan AudioAttributes agar bisa mengikuti tipe volume yang dipilih
         tts = new TextToSpeech(this, this);
 
         btnMulai.setOnClickListener(v -> {
@@ -86,7 +129,28 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             int result = tts.setLanguage(new Locale("id", "ID"));
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Toast.makeText(this, "Bahasa Indonesia tidak didukung pada perangkat", Toast.LENGTH_SHORT).show();
+            } else {
+                // Ambil daftar suara (voices) yang tersedia di mesin TTS perangkat
+                loadAvailableVoices();
             }
+        }
+    }
+
+    private void loadAvailableVoices() {
+        try {
+            Set<Voice> voices = tts.getVoices();
+            if (voices != null) {
+                for (Voice voice : voices) {
+                    // Filter yang mendukung bahasa Indonesia atau lokal terkait
+                    if (voice.getLocale() != null && voice.getLocale().getLanguage().equals("id")) {
+                        voiceList.add(voice);
+                        voiceNames.add(voice.getName());
+                    }
+                }
+                voiceAdapter.notifyDataSetChanged();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -103,8 +167,47 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void ucapkanInformasiLengkap() {
-        String waktuSekarang = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
+        if (tts == null) return;
 
+        // 1. Terapkan Suara (Voice) yang dipilih dari Spinner
+        int selectedVoicePos = spinnerVoice.getSelectedItemPosition();
+        if (selectedVoicePos > 0 && selectedVoicePos - 1 < voiceList.size()) {
+            tts.setVoice(voiceList.get(selectedVoicePos - 1));
+        }
+
+        // 2. Terapkan Tipe Audio Stream berdasarkan pilihan Spinner Volume
+        int selectedVolumeIndex = spinnerVolume.getSelectedItemPosition();
+        int audioStreamType = AudioManager.STREAM_MUSIC; // Default Media
+        int audioAttributesUsage = AudioAttributes.USAGE_MEDIA;
+
+        switch (selectedVolumeIndex) {
+            case 0: // Media
+                audioStreamType = AudioManager.STREAM_MUSIC;
+                audioAttributesUsage = AudioAttributes.USAGE_MEDIA;
+                break;
+            case 1: // Notifikasi
+                audioStreamType = AudioManager.STREAM_NOTIFICATION;
+                audioAttributesUsage = AudioAttributes.USAGE_NOTIFICATION;
+                break;
+            case 2: // Alarm
+                audioStreamType = AudioManager.STREAM_ALARM;
+                audioAttributesUsage = AudioAttributes.USAGE_ALARM;
+                break;
+            case 3: // Nada Dering / Ring
+                audioStreamType = AudioManager.STREAM_RING;
+                audioAttributesUsage = AudioAttributes.USAGE_VOICE_COMMUNICATION;
+                break;
+        }
+
+        // Konfigurasi AudioAttributes untuk TTS modern
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setUsage(audioAttributesUsage)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build();
+        tts.setAudioAttributes(audioAttributes);
+
+        // --- PERHITUNGAN WAKTU & TANGGAL ---
+        String waktuSekarang = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date());
         String tanggalMasehi = new SimpleDateFormat("EEEE, dd MMMM yyyy", new Locale("id", "ID")).format(new Date());
 
         LocalDate sekarangMasehi = LocalDate.now().plusDays(offsetHari);
@@ -126,7 +229,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
 
         String tanggalHijriyahLengkap = hariH + " " + namaBulanHijriyahStr + " " + tahunH;
-
         int levelBaterai = getBatteryPercentage();
 
         String teksUcapan = "Pukul " + waktuSekarang + ". " +
@@ -134,9 +236,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 "Tanggal Hijriyah: " + tanggalHijriyahLengkap + ". " +
                 "Sisa baterai " + levelBaterai + " persen.";
 
-        if (tts != null) {
-            tts.speak(teksUcapan, TextToSpeech.QUEUE_FLUSH, null, null);
-        }
+        // Ucapkan teks
+        tts.speak(teksUcapan, TextToSpeech.QUEUE_FLUSH, null, null);
     }
 
     private int getBatteryPercentage() {
