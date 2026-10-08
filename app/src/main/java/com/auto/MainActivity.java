@@ -16,7 +16,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
+import java.time.LocalDate;
+import java.time.chrono.HijrahDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
 import java.util.Date;
 import java.util.Locale;
 
@@ -102,25 +105,24 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         String tanggalMasehi = new SimpleDateFormat("EEEE, dd MMMM yyyy", new Locale("id", "ID")).format(new Date());
 
-        Calendar calendar = Calendar.getInstance();
-        int tahunM = calendar.get(Calendar.YEAR);
-        int bulanM = calendar.get(Calendar.MONTH) + 1;
-        int hariM = calendar.get(Calendar.DAY_OF_MONTH);
+        // Menggunakan API HijrahDate bawaan sistem yang akurat
+        LocalDate sekarangMasehi = LocalDate.now();
+        HijrahDate hijrahDate = HijrahDate.from(sekarangMasehi);
+        
+        long hariH = hijrahDate.get(ChronoField.DAY_OF_MONTH);
+        long bulanH = hijrahDate.get(ChronoField.MONTH_OF_YEAR);
+        long tahunH = hijrahDate.get(ChronoField.YEAR);
 
-        long jd = (1461 * (tahunM + 4800 + (bulanM - 14) / 12)) / 4 + (367 * (bulanM - 2 - 12 * ((bulanM - 14) / 12))) / 12 - (3 * ((tahunM + 4900 + (bulanM - 14) / 12) / 100)) / 4 + hariM - 32075;
-        long l = jd - 1948440 + 10632;
-        long n = (l - 1) / 10631;
-        l = l - 10631 * n + 354;
-        long j = ((10985 - l) * l) / 5316 + (50 * l) / 17733;
-        l = l - ((354 * j) / 1) - ((30 * j) / 1000) + (j / 15) / 2;
-        long tahunH = (30 * n) + j + (l / 330);
-        long bulanH = ((l * 12) / 325) + 1;
-        if (bulanH > 12) bulanH = 12;
-        long hariH = l - ((325 * bulanH) / 12) + 1;
-        if (hariH < 1) hariH = 1;
-
-        String[] namaBulanHijriyahArray = {"Muharram", "Safar", "Rabiul Awal", "Rabiul Akhir", "Jumadil Awal", "Jumadil Akhir", "Rajab", "Sya'ban", "Ramadhan", "Syawal", "Dulqaidah", "Dulhijjah"};
-        String namaBulanHijriyahStr = namaBulanHijriyahArray[(int)Math.max(0, Math.min(11, bulanH - 1))];
+        String[] namaBulanHijriyahArray = {
+            "Muharram", "Safar", "Rabiul Awal", "Rabiul Akhir", 
+            "Jumadil Awal", "Jumadil Akhir", "Rajab", "Sya'ban", 
+            "Ramadhan", "Syawal", "Dulqaidah", "Dulhijjah"
+        };
+        
+        String namaBulanHijriyahStr = "";
+        if (bulanH >= 1 && bulanH <= 12) {
+            namaBulanHijriyahStr = namaBulanHijriyahArray[(int) bulanH - 1];
+        }
 
         String tanggalHijriyahLengkap = hariH + " " + namaBulanHijriyahStr + " " + tahunH;
 
