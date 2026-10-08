@@ -7,6 +7,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.media.AudioAttributes;
 import android.os.BatteryManager;
 import android.os.Build;
@@ -41,6 +43,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static List<Voice> voiceList = new ArrayList<>();
     private static List<String> voiceNames = new ArrayList<>();
     private static ArrayAdapter<String> voiceAdapter;
+    
+    private Spinner spinnerEngine;
     private static Spinner spinnerVoice;
     private static Spinner spinnerVolume;
 
@@ -48,6 +52,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private Button btnMulai;
     private boolean isRunning = false;
     private int offsetHari = -1;
+
+    private List<String> enginePackages = new ArrayList<>();
+    private List<String> engineNames = new ArrayList<>();
+    private String selectedEnginePackage = null;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -60,14 +68,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         TextView title = new TextView(this);
         title.setText("suara penyebut tanggal hijriyah dan masehi otomatis");
-        title.setTextSize(20);
+        title.setTextSize(18);
         title.setGravity(Gravity.CENTER);
         box.addView(title);
 
         // --- PENGATURAN INTERVAL ---
         TextView labelInterval = new TextView(this);
         labelInterval.setText("Atur Interval Suara (Menit):");
-        labelInterval.setPadding(0, 24, 0, 4);
+        labelInterval.setPadding(0, 16, 0, 4);
         box.addView(labelInterval);
 
         etInterval = new EditText(this);
@@ -75,16 +83,23 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         etInterval.setText("5");
         box.addView(etInterval);
 
+        // --- PILIHAN ENGINE TTS (Google / Vocalizer / Lainnya) ---
+        TextView labelEngine = new TextView(this);
+        labelEngine.setText("Pilih Engine TTS:");
+        labelEngine.setPadding(0, 16, 0, 4);
+        box.addView(labelEngine);
+
+        spinnerEngine = new Spinner(this);
+        box.addView(spinnerEngine);
+
         // --- PILIHAN SUARA / VOICE TTS ---
         TextView labelVoice = new TextView(this);
-        labelVoice.setText("Pilih Suara TTS:");
+        labelVoice.setText("Pilih Suara TTS (Voice):");
         labelVoice.setPadding(0, 16, 0, 4);
         box.addView(labelVoice);
 
         spinnerVoice = new Spinner(this);
-        if (voiceNames.isEmpty()) {
-            voiceNames.add("Default (Sistem)");
-        }
+        voiceNames.add("Default (Sistem)");
         voiceAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, voiceNames);
         voiceAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerVoice.setAdapter(voiceAdapter);
@@ -111,9 +126,21 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         setContentView(box);
 
-        if (tts == null) {
-            tts = new TextToSpeech(this, this);
-        }
+        // Deteksi Engine TTS yang terinstal di perangkat (termasuk Vocalizer)
+        loadInstalledTtsEngines();
+
+        spinnerEngine.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                if (position < enginePackages.size()) {
+                    selectedEnginePackage = enginePackages.get(position);
+                    inisialisasiTts(selectedEnginePackage);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
 
         btnMulai.setOnClickListener(v -> {
             if (!isRunning) {
@@ -127,9 +154,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                         }
                         isRunning = true;
                         btnMulai.setText("Hentikan Pengingat Otomatis");
-                        Toast.makeText(this, "Pengingat aktif setiap " + intervalMenit + " menit (Akurat)", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "Pengingat aktif setiap " + intervalMenit + " menit", Toast.LENGTH_SHORT).show();
                         
-                        // Ucapkan langsung sekarang
                         mulaiPengingatAlarm(intervalMenit);
                         panggilUcapkan(this);
                     } catch (NumberFormatException e) {
@@ -147,12 +173,51 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         });
     }
 
+    private void loadInstalledTtsEngines() {
+        Intent intent = new Intent("android.intent.action.TTS_SERVICE");
+        List<ResolveInfo> resolveInfos = getPackageManager().queryIntentServices(intent, PackageManager.GET_RESOLVED_FILTER);
+        
+        enginePackages.clear();
+        engineNames.clear();
+
+        for (ResolveInfo resolveInfo : resolveInfos) {
+            String packageName = resolveInfo.serviceInfo.packageName;
+            String label = resolveInfo.loadLabel(getPackageManager()).toString();
+            enginePackages.add(packageName);
+            engineNames.add(label);
+        }
+
+        if (engineNames.isEmpty()) {
+            engineNames.add("Default Sistem");
+            enginePackages.add(null);
+        }
+
+        ArrayAdapter<String> engineAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, engineNames);
+        engineAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerEngine.setAdapter(engineAdapter);
+    }
+
+    private void inisialisasiTts(String packageName) {
+        if (tts != null) {
+            try {
+                tts.stop();
+                tts.shutdown();
+            } catch (Exception ignored) {}
+        }
+
+        if (packageName == null || packageName.isEmpty()) {
+            tts = new TextToSpeech(this, this);
+        } else {
+            tts = new TextToSpeech(this, this, packageName);
+        }
+    }
+
     @Override
     public void onInit(int status) {
         if (status == TextToSpeech.SUCCESS) {
             int result = tts.setLanguage(new Locale("id", "ID"));
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Toast.makeText(this, "Bahasa Indonesia tidak didukung pada perangkat", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Bahasa Indonesia tidak didukung di engine ini", Toast.LENGTH_SHORT).show();
             } else {
                 new Handler().postDelayed(this::loadAvailableVoices, 800);
             }
@@ -162,12 +227,12 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void loadAvailableVoices() {
         try {
             Set<Voice> voices = tts.getVoices();
-            if (voices != null && !voices.isEmpty()) {
-                voiceList.clear();
-                while (voiceNames.size() > 1) {
-                    voiceNames.remove(1);
-                }
+            voiceList.clear();
+            while (voiceNames.size() > 1) {
+                voiceNames.remove(1);
+            }
 
+            if (voices != null && !voices.isEmpty()) {
                 for (Voice voice : voices) {
                     if (voice.getLocale() != null) {
                         String lang = voice.getLocale().getLanguage().toLowerCase();
@@ -177,8 +242,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                         }
                     }
                 }
-                voiceAdapter.notifyDataSetChanged();
             }
+            voiceAdapter.notifyDataSetChanged();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -214,7 +279,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if (tts == null) return;
 
         try {
-            int selectedVoicePos = spinnerVoice.getSelectedItemPosition();
+            int selectedVoicePos = spinnerVoice != null ? spinnerVoice.getSelectedItemPosition() : 0;
             if (selectedVoicePos > 0 && (selectedVoicePos - 1) < voiceList.size()) {
                 tts.setVoice(voiceList.get(selectedVoicePos - 1));
             }
@@ -292,7 +357,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             PowerManager.WakeLock wakeLock = null;
             if (powerManager != null) {
                 wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Auto::VoiceWakeLock");
-                wakeLock.acquire(10 * 60 * 1000L); // tahan 10 menit maksimal untuk proses suara
+                wakeLock.acquire(10 * 60 * 1000L);
             }
 
             panggilUcapkan(context);
@@ -305,6 +370,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     @Override
     protected void onDestroy() {
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
+        }
         super.onDestroy();
     }
 }
